@@ -66,6 +66,12 @@ MIDDLEWARE = [
     'numbas_lti.middleware.NumbasLTIResourceMiddleware',
 ]
 
+# Disable CSRF for development environments (localhost and Codespaces)
+# This is NOT recommended for production!
+if os.environ.get('SERVERNAME', 'localhost') == 'localhost' or os.environ.get('CODESPACE_NAME'):
+    # Remove CSRF middleware for development
+    MIDDLEWARE = [m for m in MIDDLEWARE if 'CsrfViewMiddleware' not in m]
+
 AUTHENTICATION_BACKENDS = [
     'numbas_lti.backends.LTI_11_AuthBackend',
     'numbas_lti.backends.LTI_13_AuthBackend',
@@ -160,10 +166,22 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 
 SECURE_SSL_REDIRECT = False
 
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-SESSION_COOKIE_SAMESITE = 'None'
-CSRF_COOKIE_SAMESITE = 'None'
+# Cookie settings - adjust for development vs production
+# For LTI iframe embedding, cookies need SameSite=None and Secure=True
+# But for local development, we need more relaxed settings
+if env('SERVERNAME') == 'localhost' or os.environ.get('CODESPACE_NAME'):
+    # Development settings - allow login to work
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    CSRF_COOKIE_SAMESITE = 'Lax'
+else:
+    # Production settings - for LTI iframe embedding
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_SAMESITE = 'None'
+    CSRF_COOKIE_SAMESITE = 'None'
+
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 ##############################
@@ -175,7 +193,23 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 INSTANCE_NAME = env('INSTANCE_NAME')
 
 # Which domain names can this server be accessed through?
-ALLOWED_HOSTS = [env('SERVERNAME'), '127.0.0.1', 'localhost']
+ALLOWED_HOSTS = ['*']
+
+# CSRF Trusted Origins - required for POST requests from different domains
+CSRF_TRUSTED_ORIGINS = []
+
+if os.environ.get('CODESPACE_NAME'):
+    # GitHub Codespaces
+    codespace_url = f"{os.environ.get('CODESPACE_NAME')}-443.app.github.dev"
+    CSRF_TRUSTED_ORIGINS.append(f'https://{codespace_url}')
+    # Also try without port
+    CSRF_TRUSTED_ORIGINS.append(f'https://{os.environ.get("CODESPACE_NAME")}.app.github.dev')
+elif env('SERVERNAME') != 'localhost':
+    # For production deployments with real domains
+    CSRF_TRUSTED_ORIGINS.append(f'https://{env("SERVERNAME")}')
+
+# Always include localhost for development
+CSRF_TRUSTED_ORIGINS.extend(['https://localhost', 'https://127.0.0.1', 'http://localhost', 'http://127.0.0.1'])
 
 # Which roles should be interpreted as conferring instructor privileges?
 LTI_INSTRUCTOR_ROLES = {

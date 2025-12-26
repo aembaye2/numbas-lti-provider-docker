@@ -46,6 +46,9 @@ services:
   daphne:
     env_file:
       - 'settings.env'
+    environment:
+      CODESPACE_NAME: ${CODESPACE_NAME}
+      GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN: ${GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN:-}
     image: numbas/numbas-lti-provider
     command: /usr/local/bin/daphne numbasltiprovider.asgi:application --port 8700 --bind 0.0.0.0 -v 2
     depends_on:
